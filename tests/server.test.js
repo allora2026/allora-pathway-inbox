@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { getServerConfig, getListenHosts, routeRequest } from '../server.js';
+import { getDirectRunListenHosts, getServerConfig, getListenHosts, routeRequest } from '../server.js';
 
 function createTempRoot() {
   return mkdtempSync(join(tmpdir(), 'pathway-inbox-server-'));
@@ -201,6 +201,10 @@ test('getListenHosts returns localhost plus unique Tailscale listener unless an 
   );
 
   assert.deepEqual(getListenHosts(getServerConfig({ HOST: '0.0.0.0' })), ['0.0.0.0']);
+});
+
+test('getDirectRunListenHosts preserves explicit HOST overrides for deployment runtimes', () => {
+  assert.deepEqual(getDirectRunListenHosts({ HOST: '0.0.0.0', PORT: '3000' }), ['0.0.0.0']);
 });
 
 test('routeRequest exposes a health endpoint for deployment probes', async () => {

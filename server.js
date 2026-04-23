@@ -40,6 +40,11 @@ export function getListenHosts({ host, tailscaleIp }) {
   return hosts;
 }
 
+export function getDirectRunListenHosts(env = process.env) {
+  const { host, tailscaleIp } = getServerConfig(env);
+  return getListenHosts({ host, tailscaleIp });
+}
+
 const { port: PORT, host: HOST, tailscaleIp: TAILSCALE_IP } = getServerConfig();
 const ROOT = process.cwd();
 
@@ -222,7 +227,7 @@ const isDirectRun =
   process.argv[1] && new URL(`file://${process.argv[1]}`).href === import.meta.url;
 
 if (isDirectRun) {
-  const listenHosts = getListenHosts({ tailscaleIp: TAILSCALE_IP });
+  const listenHosts = getDirectRunListenHosts();
 
   for (const host of listenHosts) {
     const server = http.createServer(createRequestHandler());
