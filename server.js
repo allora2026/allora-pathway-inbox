@@ -227,7 +227,7 @@ const isDirectRun =
   process.argv[1] && new URL(`file://${process.argv[1]}`).href === import.meta.url;
 
 if (isDirectRun) {
-  const listenHosts = getDirectRunListenHosts();
+  const listenHosts = getListenHosts({ host: HOST, tailscaleIp: TAILSCALE_IP });
 
   for (const host of listenHosts) {
     const server = http.createServer(createRequestHandler());
