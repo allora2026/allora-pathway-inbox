@@ -16,21 +16,31 @@ import {
 export function getServerConfig(env = process.env) {
   return {
     port: Number.parseInt(env.PORT ?? '3000', 10),
+    host: env.HOST ?? null,
     tailscaleIp: env.TAILSCALE_IP ?? null
   };
 }
 
-export function getListenHosts({ tailscaleIp }) {
+export function getListenHosts({ host, tailscaleIp }) {
+  if (host && host !== '127.0.0.1' && host !== 'localhost') {
+    return [host];
+  }
+
   const hosts = ['127.0.0.1'];
 
-  if (tailscaleIp && tailscaleIp !== '127.0.0.1' && tailscaleIp !== 'localhost') {
+  if (
+    tailscaleIp &&
+    tailscaleIp !== '127.0.0.1' &&
+    tailscaleIp !== 'localhost' &&
+    tailscaleIp !== '0.0.0.0'
+  ) {
     hosts.push(tailscaleIp);
   }
 
   return hosts;
 }
 
-const { port: PORT, tailscaleIp: TAILSCALE_IP } = getServerConfig();
+const { port: PORT, host: HOST, tailscaleIp: TAILSCALE_IP } = getServerConfig();
 const ROOT = process.cwd();
 
 const CONTENT_TYPES = {
@@ -76,6 +86,10 @@ export async function routeRequest({
   env = process.env,
   fetchImpl
 }) {
+  if (method === 'GET' && pathname === '/health') {
+    return jsonResponse(200, { ok: true });
+  }
+
   if (method === 'GET' && pathname === '/api/events') {
     return jsonResponse(200, loadInboxEvents({ root, env }));
   }

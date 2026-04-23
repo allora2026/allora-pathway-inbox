@@ -167,19 +167,27 @@ test('routeRequest resolves individual events from the runtime-backed store', as
   }
 });
 
-test('getServerConfig defaults to localhost and can include a Tailscale IP', () => {
+test('getServerConfig defaults to localhost and can include host overrides or a Tailscale IP', () => {
   assert.deepEqual(getServerConfig({}), {
     port: 3000,
+    host: null,
     tailscaleIp: null
   });
 
   assert.deepEqual(getServerConfig({ TAILSCALE_IP: '100.103.144.45', PORT: '4010' }), {
     port: 4010,
+    host: null,
     tailscaleIp: '100.103.144.45'
+  });
+
+  assert.deepEqual(getServerConfig({ HOST: '0.0.0.0', PORT: '4010' }), {
+    port: 4010,
+    host: '0.0.0.0',
+    tailscaleIp: null
   });
 });
 
-test('getListenHosts returns localhost plus unique Tailscale listener when configured', () => {
+test('getListenHosts returns localhost plus unique Tailscale listener unless an explicit host override is configured', () => {
   assert.deepEqual(getListenHosts(getServerConfig({})), ['127.0.0.1']);
 
   assert.deepEqual(
@@ -191,6 +199,19 @@ test('getListenHosts returns localhost plus unique Tailscale listener when confi
     getListenHosts(getServerConfig({ TAILSCALE_IP: '127.0.0.1' })),
     ['127.0.0.1']
   );
+
+  assert.deepEqual(getListenHosts(getServerConfig({ HOST: '0.0.0.0' })), ['0.0.0.0']);
+});
+
+test('routeRequest exposes a health endpoint for deployment probes', async () => {
+  const response = await routeRequest({
+    method: 'GET',
+    pathname: '/health',
+    env: {}
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(response.body), { ok: true });
 });
 
 test('routeRequest uses live Flowcore ingestion when FLOWCORE_API_KEY is configured', async () => {
