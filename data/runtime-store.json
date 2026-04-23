@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-23T18:16:00Z",
+  "generatedAt": "2026-04-23T09:15:00Z",
   "flowcore": {
     "tenant": "allora2026",
     "dataCoreId": "5b700879-58b4-49d0-afd9-43318e781457",
@@ -69,28 +69,19 @@
       ],
       "notes": [
         {
-          "author": "Usable memory",
+          "author": "Pathway Inbox runtime",
           "savedAt": "2026-04-23T09:15:00Z",
           "title": "GitHub push note",
-          "body": "Delivery demo-delivery-2026-04-23 pushed 1a2b3c4 to refs/heads/main with 1 recorded commit entries.",
-          "fragmentId": "runtime-note:demo-delivery-2026-04-23",
-          "workspaceId": "runtime-local"
+          "body": "Delivery demo-delivery-2026-04-23 pushed 1a2b3c4 to refs/heads/main with 1 recorded commit entries. The runtime is still local-only until FLOWCORE_API_KEY is configured, but the same event shell can refresh linked memory once USABLE_ACCESS_TOKEN is available.",
+          "fragmentId": null,
+          "workspaceId": null
         }
       ],
       "prompts": [
         "Summarize the landed push for an operator.",
-        "Which replay endpoint should I call to rebuild this inbox event?"
+        "Which replay endpoint should I call to rebuild this inbox event? /api/events/github-push:demo-delivery-2026-04-23/replay"
       ],
-      "chat": [
-        {
-          "speaker": "Operator",
-          "message": "Which GitHub push is grounding this inbox item?"
-        },
-        {
-          "speaker": "Usable Chat",
-          "message": "Delivery demo-delivery-2026-04-23 pushed 1 commit entries to refs/heads/main for allora-ai/allora-pathway-inbox."
-        }
-      ],
+      "usable": null,
       "flowcore": {
         "tenant": "allora2026",
         "dataCoreId": "5b700879-58b4-49d0-afd9-43318e781457",
@@ -111,113 +102,6 @@
         "replayPath": "/api/events/github-push:demo-delivery-2026-04-23/replay",
         "triggerMode": "local-only",
         "lastTriggeredAt": "2026-04-23T09:15:00Z",
-        "lastReplayedAt": null
-      }
-    },
-    {
-      "eventId": "3df5f770-3f41-11f1-975c-042ba07e296b",
-      "source": "github",
-      "sourceType": "webhook",
-      "receivedAt": "2026-04-23T18:16:00Z",
-      "eventType": "push.received.0",
-      "headline": "allora-ai/allora-pathway-inbox received push to refs/heads/main",
-      "payload": {
-        "ref": "refs/heads/main",
-        "before": "9f8e7d6c5b4a32100112233445566778899aabbc",
-        "after": "1a2b3c4d5e6f77889900aabbccddeeff00112233",
-        "repository": {
-          "id": 90210,
-          "name": "allora-pathway-inbox",
-          "full_name": "allora-ai/allora-pathway-inbox",
-          "html_url": "https://github.com/allora-ai/allora-pathway-inbox"
-        },
-        "pusher": {
-          "name": "playwright-owner"
-        },
-        "sender": {
-          "login": "playwright-owner"
-        },
-        "head_commit": {
-          "id": "1a2b3c4d5e6f77889900aabbccddeeff00112233",
-          "message": "Ship runtime-backed inbox ingestion",
-          "timestamp": "2026-04-23T18:16:00Z",
-          "url": "https://github.com/allora-ai/allora-pathway-inbox/commit/1a2b3c4d5e6f77889900aabbccddeeff00112233"
-        },
-        "commits": [
-          {
-            "id": "1a2b3c4d5e6f77889900aabbccddeeff00112233",
-            "message": "Ship runtime-backed inbox ingestion",
-            "timestamp": "2026-04-23T18:16:00Z",
-            "url": "https://github.com/allora-ai/allora-pathway-inbox/commit/1a2b3c4d5e6f77889900aabbccddeeff00112233",
-            "author": {
-              "name": "playwright-owner"
-            }
-          }
-        ]
-      },
-      "status": "received",
-      "entityKey": "github-push:90210:refs/heads/main",
-      "route": "flowcore://pathway-inbox/github-webhook.0/push.received.0",
-      "summary": "1 commit pushed to refs/heads/main in allora-ai/allora-pathway-inbox by playwright-owner.",
-      "replayState": "Ready for replay from POST /api/events/3df5f770-3f41-11f1-975c-042ba07e296b/replay. Replayed 0 times.",
-      "timeline": [
-        {
-          "label": "GitHub delivered push delivery-live-hermes-001 to the runtime trigger endpoint",
-          "at": "2026-04-23T18:16:00Z"
-        },
-        {
-          "label": "Flowcore accepted live event 3df5f770-3f41-11f1-975c-042ba07e296b for allora-ai/allora-pathway-inbox",
-          "at": "2026-04-23T18:16:00Z"
-        },
-        {
-          "label": "Pathway Inbox persisted the landed Flowcore read model for allora-ai/allora-pathway-inbox",
-          "at": "2026-04-23T18:16:00Z"
-        }
-      ],
-      "notes": [
-        {
-          "author": "Usable memory",
-          "savedAt": "2026-04-23T18:16:00Z",
-          "title": "GitHub push note",
-          "body": "Delivery delivery-live-hermes-001 pushed 1a2b3c4 to refs/heads/main with 1 recorded commit entries.",
-          "fragmentId": "runtime-note:delivery-live-hermes-001",
-          "workspaceId": "runtime-local"
-        }
-      ],
-      "prompts": [
-        "Summarize the landed push for an operator.",
-        "Which replay endpoint should I call to rebuild this inbox event?"
-      ],
-      "chat": [
-        {
-          "speaker": "Operator",
-          "message": "Which GitHub push is grounding this inbox item?"
-        },
-        {
-          "speaker": "Usable Chat",
-          "message": "Delivery delivery-live-hermes-001 pushed 1 commit entries to refs/heads/main for allora-ai/allora-pathway-inbox."
-        }
-      ],
-      "flowcore": {
-        "tenant": "allora2026",
-        "dataCoreId": "5b700879-58b4-49d0-afd9-43318e781457",
-        "flowType": "github-webhook.0",
-        "eventType": "push.received.0",
-        "timeBucket": "20260423181600",
-        "pathwayName": "pathway-inbox-github",
-        "ingestionEndpoint": "https://webhook.api.flowcore.io/event/allora2026/5b700879-58b4-49d0-afd9-43318e781457/github-webhook.0/push.received.0",
-        "sourceEventId": "github-push:delivery-live-hermes-001",
-        "liveEventId": "3df5f770-3f41-11f1-975c-042ba07e296b",
-        "ingestionMode": "live",
-        "lastResponseStatus": 201
-      },
-      "runtime": {
-        "deliveryId": "delivery-live-hermes-001",
-        "replayCount": 0,
-        "triggerPath": "/api/events/trigger/github/push",
-        "replayPath": "/api/events/3df5f770-3f41-11f1-975c-042ba07e296b/replay",
-        "triggerMode": "live-flowcore",
-        "lastTriggeredAt": "2026-04-23T18:16:00Z",
         "lastReplayedAt": null
       }
     }

@@ -6,7 +6,11 @@ import { join } from 'node:path';
 
 import { canonicalEventKeys } from '../src/data/events.js';
 import { triggerGithubPush, replayInboxEvent } from '../src/runtime-store.js';
-import { getInboxEventById, loadInboxEvents } from '../src/read-model.js';
+import {
+  getEventContextById,
+  getInboxEventById,
+  loadInboxEvents
+} from '../src/read-model.js';
 
 function createTempRoot() {
   return mkdtempSync(join(tmpdir(), 'pathway-inbox-read-model-'));
@@ -213,6 +217,109 @@ test('triggerGithubPush stays runnable locally and marks the event as local-only
     assert.equal(event.runtime.triggerMode, 'local-only');
     assert.match(event.summary, /FLOWCORE_API_KEY/i);
     assert.match(event.replayState, /Local-only runtime event/i);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('triggerGithubPush creates and persists a real Usable fragment link when USABLE_ACCESS_TOKEN is configured', async () => {
+  const root = createTempRoot();
+  const payload = createGithubPushPayload();
+  const calls = [];
+
+  try {
+    const event = await triggerGithubPush({
+      deliveryId: 'delivery-usable-001',
+      payload,
+      root,
+      receivedAt: '2026-04-23T09:15:00Z',
+      env: {
+        FLOWCORE_API_KEY: 'raw-live-key',
+        FLOWCORE_DATA_CORE_ID: '5b700879-58b4-49d0-afd9-43318e781457',
+        FLOWCORE_DATA_CORE_NAME: 'pathway-inbox',
+        USABLE_ACCESS_TOKEN: 'usable-live-token',
+        USABLE_WORKSPACE_ID: 'aee4606a-0522-484f-8139-548d528461ef',
+        USABLE_FRAGMENT_TYPE_ID: '3ce10f13-5380-4041-bbf8-71626be6cd3a'
+      },
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init });
+
+        if (url.startsWith('https://webhook.api.flowcore.io/event/')) {
+          return new Response(
+            JSON.stringify({
+              eventId: 'flowcore-live-usable-001',
+              timeBucket: '20260423091500'
+            }),
+            {
+              status: 201,
+              headers: {
+                'content-type': 'application/json'
+              }
+            }
+          );
+        }
+
+        if (url === 'https://usable.dev/api/memory-fragments') {
+          return new Response(
+            JSON.stringify({
+              fragmentId: 'usable-fragment-001',
+              title: 'Pathway Inbox event context'
+            }),
+            {
+              status: 201,
+              headers: {
+                'content-type': 'application/json'
+              }
+            }
+          );
+        }
+
+        throw new Error(`Unexpected fetch target: ${url}`);
+      }
+    });
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url, 'https://usable.dev/api/memory-fragments');
+    assert.equal(calls[1].init.method, 'POST');
+    assert.equal(calls[1].init.headers.authorization, 'Bearer usable-live-token');
+    assert.equal(calls[1].init.headers['content-type'], 'application/json');
+
+    const usablePayload = JSON.parse(calls[1].init.body);
+
+    assert.equal(usablePayload.workspaceId, 'aee4606a-0522-484f-8139-548d528461ef');
+    assert.equal(usablePayload.fragmentTypeId, '3ce10f13-5380-4041-bbf8-71626be6cd3a');
+    assert.match(usablePayload.title, /allora-ai\/allora-pathway-inbox/);
+    assert.match(usablePayload.content, /flowcore-live-usable-001/);
+    assert.deepEqual(
+      usablePayload.tags,
+      [
+        'pathway-inbox',
+        'flowcore',
+        'usable',
+        'event-note',
+        'project:pathway-inbox',
+        'repo:allora-pathway-inbox',
+        'source:github',
+        'event-type:push.received.0'
+      ]
+    );
+
+    assert.equal(event.eventId, 'flowcore-live-usable-001');
+    assert.equal(event.usable.fragmentId, 'usable-fragment-001');
+    assert.equal(event.usable.workspaceId, 'aee4606a-0522-484f-8139-548d528461ef');
+    assert.equal(
+      event.usable.url,
+      'https://usable.dev/dashboard/workspaces/aee4606a-0522-484f-8139-548d528461ef/fragments/usable-fragment-001'
+    );
+    assert.match(event.usable.content, /Replay count: 0/);
+
+    const persisted = getInboxEventById(event.eventId, { root });
+    const context = getEventContextById(event.eventId, { root });
+
+    assert.equal(persisted?.usable.fragmentId, 'usable-fragment-001');
+    assert.equal(context?.fragmentId, 'usable-fragment-001');
+    assert.match(context?.content ?? '', /Pathway Inbox event context/);
+    assert.match(context?.content ?? '', /Flowcore event ID: flowcore-live-usable-001/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

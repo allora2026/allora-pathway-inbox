@@ -229,3 +229,129 @@ test('routeRequest uses live Flowcore ingestion when FLOWCORE_API_KEY is configu
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('routeRequest exposes linked Usable context and refreshes it through a backend action route', async () => {
+  const root = createTempRoot();
+  const calls = [];
+  const env = {
+    FLOWCORE_API_KEY: 'raw-live-key',
+    FLOWCORE_DATA_CORE_ID: '5b700879-58b4-49d0-afd9-43318e781457',
+    FLOWCORE_DATA_CORE_NAME: 'pathway-inbox',
+    USABLE_ACCESS_TOKEN: 'usable-live-token',
+    USABLE_WORKSPACE_ID: 'aee4606a-0522-484f-8139-548d528461ef',
+    USABLE_FRAGMENT_TYPE_ID: '3ce10f13-5380-4041-bbf8-71626be6cd3a'
+  };
+
+  try {
+    const fetchImpl = async (url, init = {}) => {
+      calls.push({ url, init });
+
+      if (url.startsWith('https://webhook.api.flowcore.io/event/')) {
+        return new Response(
+          JSON.stringify({
+            eventId: 'flowcore-live-context-201',
+            timeBucket: '20260423091500'
+          }),
+          {
+            status: 201,
+            headers: {
+              'content-type': 'application/json'
+            }
+          }
+        );
+      }
+
+      if (url === 'https://usable.dev/api/memory-fragments' && init.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            fragmentId: 'usable-fragment-201',
+            title: 'Pathway Inbox event context'
+          }),
+          {
+            status: 201,
+            headers: {
+              'content-type': 'application/json'
+            }
+          }
+        );
+      }
+
+      if (
+        url === 'https://usable.dev/api/memory-fragments/usable-fragment-201' &&
+        init.method === 'PATCH'
+      ) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        });
+      }
+
+      throw new Error(`Unexpected fetch target: ${url}`);
+    };
+
+    const created = JSON.parse(
+      (
+        await routeRequest({
+          method: 'POST',
+          pathname: '/api/events/trigger/github/push',
+          headers: {
+            'x-github-delivery': 'delivery-context-201'
+          },
+          body: JSON.stringify(createGithubPushPayload()),
+          root,
+          env,
+          fetchImpl
+        })
+      ).body
+    );
+
+    const initialContext = await routeRequest({
+      method: 'GET',
+      pathname: `/api/events/${created.eventId}/context`,
+      root,
+      env
+    });
+    const initialPayload = JSON.parse(initialContext.body);
+
+    assert.equal(initialContext.status, 200);
+    assert.equal(initialPayload.fragmentId, 'usable-fragment-201');
+    assert.match(initialPayload.content, /Replay count: 0/);
+
+    const replayed = await routeRequest({
+      method: 'POST',
+      pathname: `/api/events/${created.eventId}/replay`,
+      root,
+      env
+    });
+
+    assert.equal(replayed.status, 202);
+
+    const refreshedContext = await routeRequest({
+      method: 'POST',
+      pathname: `/api/events/${created.eventId}/context/refresh`,
+      root,
+      env,
+      fetchImpl
+    });
+    const refreshedPayload = JSON.parse(refreshedContext.body);
+
+    assert.equal(refreshedContext.status, 200);
+    assert.equal(refreshedPayload.fragmentId, 'usable-fragment-201');
+    assert.match(refreshedPayload.content, /Replay count: 1/);
+    assert.match(refreshedPayload.content, /flowcore-live-context-201/);
+
+    const patchCall = calls.find(
+      (call) =>
+        call.url === 'https://usable.dev/api/memory-fragments/usable-fragment-201' &&
+        call.init.method === 'PATCH'
+    );
+
+    assert.ok(patchCall, 'expected refresh route to patch the linked Usable fragment');
+    assert.equal(patchCall.init.headers.authorization, 'Bearer usable-live-token');
+    assert.match(JSON.parse(patchCall.init.body).content, /Replay count: 1/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

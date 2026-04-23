@@ -127,58 +127,63 @@ export function renderDetail(event) {
   `;
 }
 
-export function renderChatPanel(event) {
-  const notes = event.notes
-    .map(
-      (note) => `
-        <article class="note-card">
-          <div class="note-card__meta">
-            <span>${escapeHtml(note.author)}</span>
-            <span>${escapeHtml(formatTimestamp(note.savedAt))}</span>
-          </div>
-          <h3>${escapeHtml(note.title)}</h3>
-          <p>${escapeHtml(note.body)}</p>
-          <p>Usable fragment: ${escapeHtml(note.fragmentId)}</p>
-        </article>
-      `
-    )
-    .join('');
+function renderContextPanel(contextState = {}) {
+  if (contextState.contextLoading) {
+    return '<p class="context-status">Loading linked context…</p>';
+  }
 
-  const transcript = event.chat
-    .map(
-      (entry) => `
-        <article class="chat-entry">
-          <strong>${escapeHtml(entry.speaker)}</strong>
-          <p>${escapeHtml(entry.message)}</p>
-        </article>
-      `
-    )
-    .join('');
+  if (contextState.contextError) {
+    return `<p class="context-status">${escapeHtml(contextState.contextError)}</p>`;
+  }
 
-  const prompts = event.prompts
-    .map((prompt) => `<span class="prompt-chip">${escapeHtml(prompt)}</span>`)
-    .join('');
+  if (!contextState.context) {
+    return '<p class="context-status">Select an event to load linked context.</p>';
+  }
+
+  const { context } = contextState;
+  const openLink = context.url
+    ? `<a class="context-link" href="${escapeHtml(context.url)}" target="_blank" rel="noreferrer">Open in Usable</a>`
+    : '';
+  const syncedAt = context.lastSyncedAt
+    ? formatTimestamp(context.lastSyncedAt)
+    : 'Not synced yet';
+  const refreshLabel = contextState.actionPending ? 'Refreshing linked memory…' : 'Refresh linked memory';
 
   return `
     <section class="chat-panel" aria-labelledby="usable-chat-title">
       <div class="panel-heading">
         <p class="eyebrow">Usable context panel</p>
-        <h2 id="usable-chat-title">Saved notes + chat grounding</h2>
+        <h2 id="usable-chat-title">Usable event context</h2>
       </div>
-      <div class="note-list">${notes}</div>
-      <div class="chat-shell">
-        <div class="chat-shell__header">
-          <span>Usable Chat</span>
-          <span>Grounded on event-linked memory</span>
+      <div class="context-meta-grid">
+        <div>
+          <span>Fragment title</span>
+          <strong>${escapeHtml(context.title)}</strong>
         </div>
-        <div class="chat-transcript">${transcript}</div>
-        <div class="prompt-strip">${prompts}</div>
+        <div>
+          <span>Fragment ID</span>
+          <strong>${escapeHtml(context.fragmentId ?? 'not linked')}</strong>
+        </div>
+        <div>
+          <span>Last synced</span>
+          <strong>${escapeHtml(syncedAt)}</strong>
+        </div>
       </div>
+      <div class="context-actions">
+        <button
+          class="context-action-button"
+          data-context-action="refresh"
+          type="button"
+          ${contextState.actionPending ? 'disabled' : ''}
+        >${escapeHtml(refreshLabel)}</button>
+        ${openLink}
+      </div>
+      <pre class="context-block"><code>${escapeHtml(context.content)}</code></pre>
     </section>
   `;
 }
 
-export function renderApp(events, activeEventId) {
+export function renderApp(events, activeEventId, contextState = {}) {
   if (!events.length) {
     return `
       <div class="page-shell">
@@ -236,7 +241,7 @@ export function renderApp(events, activeEventId) {
           <div class="event-list">${renderFeed(events, activeEvent.eventId)}</div>
         </section>
         ${renderDetail(activeEvent)}
-        ${renderChatPanel(activeEvent)}
+        ${renderContextPanel(contextState)}
       </main>
     </div>
   `;

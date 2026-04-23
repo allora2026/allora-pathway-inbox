@@ -62,19 +62,26 @@ test('renderApp includes the existing shell surfaces for runtime-backed events',
       env: {}
     });
     const events = loadInboxEvents({ root });
-    const html = renderApp(events, event.eventId);
+    const html = renderApp(events, event.eventId, {
+      context: {
+        title: 'Pathway Inbox event context',
+        fragmentId: 'usable-fragment-101',
+        content: 'Real linked fragment content for the selected event.',
+        lastSyncedAt: '2026-04-23T09:15:00Z'
+      }
+    });
 
     assert.match(html, /Pathway Inbox/);
     assert.match(html, /Recent events/);
     assert.match(html, /Event detail view/);
-    assert.match(html, /Usable Chat/);
+    assert.match(html, /Usable event context/);
     assert.match(html, /Flowcore and Usable story/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('renderApp describes the persisted runtime event and explicit replay path', async () => {
+test('renderApp describes the persisted runtime event and renders the linked Usable fragment content with an action button', async () => {
   const root = createTempRoot();
 
   try {
@@ -86,7 +93,21 @@ test('renderApp describes the persisted runtime event and explicit replay path',
       env: {}
     });
     const events = loadInboxEvents({ root });
-    const html = renderApp(events, event.eventId);
+    const html = renderApp(events, event.eventId, {
+      context: {
+        title: 'Pathway Inbox event context',
+        fragmentId: 'usable-fragment-102',
+        content: [
+          '# Pathway Inbox event context',
+          '',
+          'Flowcore event ID: github-push:delivery-102',
+          'Replay count: 0',
+          'Commit message: Ship runtime-backed inbox ingestion'
+        ].join('\n'),
+        url: 'https://usable.dev/dashboard/workspaces/aee4606a-0522-484f-8139-548d528461ef/fragments/usable-fragment-102',
+        lastSyncedAt: '2026-04-23T09:15:00Z'
+      }
+    });
 
     assert.match(html, /github-push:delivery-102/);
     assert.match(html, /allora-ai\/allora-pathway-inbox received push to refs\/heads\/main/);
@@ -94,13 +115,16 @@ test('renderApp describes the persisted runtime event and explicit replay path',
     assert.match(html, /FLOWCORE_API_KEY/);
     assert.match(html, /POST \/api\/events\/trigger\/github\/push/);
     assert.match(html, /POST \/api\/events\/github-push:delivery-102\/replay/);
-    assert.match(html, /Ship runtime-backed inbox ingestion/);
+    assert.match(html, /Pathway Inbox event context/);
+    assert.match(html, /usable-fragment-102/);
+    assert.match(html, /Refresh linked memory/);
+    assert.match(html, /Open in Usable/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('projected runtime events still satisfy the canonical envelope and linked note story', async () => {
+test('projected runtime events still satisfy the canonical envelope while the panel can render a loading or fallback state', async () => {
   const root = createTempRoot();
 
   try {
@@ -127,7 +151,12 @@ test('projected runtime events still satisfy the canonical envelope and linked n
     }
 
     assert.equal(events[0].entityKey, 'github-push:90210:refs/heads/main');
-    assert.match(events[0].notes[0].body, /delivery-103/);
+    assert.match(
+      renderApp(events, events[0].eventId, {
+        contextLoading: true
+      }),
+      /Loading linked context/
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

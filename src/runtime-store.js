@@ -7,6 +7,12 @@ import {
   createGithubPushEventId,
   ingestFlowcoreEvent
 } from './flowcore/client.js';
+import {
+  createUsableFragmentForEvent,
+  getUsableConfig,
+  hasUsableAccess,
+  updateUsableFragmentForEvent
+} from './usable/client.js';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -66,8 +72,21 @@ function createReplayState({ replayCount, replayPath, ingestionMode }) {
   return `Local-only runtime event. Replay stays inside Pathway Inbox until FLOWCORE_API_KEY is configured. Replayed ${replayCount} ${replayLabel}.`;
 }
 
-function createNoteBody({ deliveryId, payload }) {
-  return `Delivery ${deliveryId} pushed ${payload.after.slice(0, 7)} to ${payload.ref} with ${payload.commits.length} recorded commit entries.`;
+function createNoteBody({ deliveryId, payload, ingestionMode }) {
+  const base = `Delivery ${deliveryId} pushed ${payload.after.slice(0, 7)} to ${payload.ref} with ${payload.commits.length} recorded commit entries.`;
+
+  if (ingestionMode === 'live') {
+    return `${base} The event is linked to a persisted Flowcore write and can sync into a real Usable fragment.`;
+  }
+
+  return `${base} The runtime is still local-only until FLOWCORE_API_KEY is configured, but the same event shell can refresh linked memory once USABLE_ACCESS_TOKEN is available.`;
+}
+
+function createPrompts(replayPath) {
+  return [
+    'Summarize the landed push for an operator.',
+    `Which replay endpoint should I call to rebuild this inbox event? ${replayPath}`
+  ];
 }
 
 function findEventIndex(state, deliveryId) {
@@ -156,28 +175,16 @@ function projectGithubPushEvent({
     }),
     notes: [
       {
-        author: 'Usable memory',
+        author: 'Pathway Inbox runtime',
         savedAt: receivedAt,
         title: 'GitHub push note',
-        body: createNoteBody({ deliveryId, payload }),
-        fragmentId: `runtime-note:${deliveryId}`,
-        workspaceId: 'runtime-local'
+        body: createNoteBody({ deliveryId, payload, ingestionMode: liveIngestion.ingestionMode }),
+        fragmentId: null,
+        workspaceId: null
       }
     ],
-    prompts: [
-      'Summarize the landed push for an operator.',
-      'Which replay endpoint should I call to rebuild this inbox event?'
-    ],
-    chat: [
-      {
-        speaker: 'Operator',
-        message: 'Which GitHub push is grounding this inbox item?'
-      },
-      {
-        speaker: 'Usable Chat',
-        message: `Delivery ${deliveryId} pushed ${payload.commits.length} commit entries to ${payload.ref} for ${payload.repository.full_name}.`
-      }
-    ],
+    prompts: createPrompts(replayPath),
+    usable: null,
     flowcore: {
       tenant: flowcore.tenant,
       dataCoreId: flowcore.dataCoreId,
@@ -201,6 +208,34 @@ function projectGithubPushEvent({
       lastReplayedAt: null
     }
   };
+}
+
+async function syncUsableContext({
+  event,
+  existingEvent,
+  fetchImpl,
+  env
+}) {
+  const usableConfig = getUsableConfig(env);
+
+  if (!hasUsableAccess(usableConfig)) {
+    return existingEvent?.usable ?? null;
+  }
+
+  if (existingEvent?.usable?.fragmentId) {
+    return updateUsableFragmentForEvent({
+      event,
+      fragmentId: existingEvent.usable.fragmentId,
+      fetchImpl,
+      config: usableConfig
+    });
+  }
+
+  return createUsableFragmentForEvent({
+    event,
+    fetchImpl,
+    config: usableConfig
+  });
 }
 
 function sortEvents(events) {
@@ -254,6 +289,20 @@ export async function triggerGithubPush({
     liveIngestion,
     config
   });
+  const usableContext = await syncUsableContext({
+    event: projectedEvent,
+    existingEvent,
+    fetchImpl,
+    env: options.env
+  });
+  projectedEvent.usable = usableContext;
+  if (projectedEvent.notes?.[0]) {
+    projectedEvent.notes[0] = {
+      ...projectedEvent.notes[0],
+      fragmentId: usableContext?.fragmentId ?? null,
+      workspaceId: usableContext?.workspaceId ?? null
+    };
+  }
 
   if (existingIndex === -1) {
     state.events.push(projectedEvent);
@@ -265,6 +314,7 @@ export async function triggerGithubPush({
         replayCount: existingEvent.runtime?.replayCount ?? 0,
         lastReplayedAt: existingEvent.runtime?.lastReplayedAt ?? null
       },
+      usable: usableContext ?? existingEvent.usable ?? null,
       replayState: createReplayState({
         replayCount: existingEvent.runtime?.replayCount ?? 0,
         replayPath: projectedEvent.runtime.replayPath,
@@ -281,6 +331,36 @@ export async function triggerGithubPush({
   writeRuntimeState(state, options);
 
   return clone(getRuntimeEventById(projectedEvent.eventId, options));
+}
+
+export async function refreshEventContext({
+  eventId,
+  fetchImpl,
+  ...options
+}) {
+  const state = readRuntimeState(options);
+  const eventIndex = state.events.findIndex((event) => event.eventId === eventId);
+
+  if (eventIndex === -1) {
+    return null;
+  }
+
+  const event = state.events[eventIndex];
+  const usableContext = await syncUsableContext({
+    event,
+    existingEvent: event,
+    fetchImpl,
+    env: options.env
+  });
+
+  state.events[eventIndex] = {
+    ...event,
+    usable: usableContext ?? event.usable ?? null
+  };
+  state.generatedAt = new Date().toISOString();
+  writeRuntimeState(state, options);
+
+  return clone(state.events[eventIndex]);
 }
 
 export function replayInboxEvent({

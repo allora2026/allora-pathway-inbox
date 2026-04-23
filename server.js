@@ -2,8 +2,16 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import http from 'node:http';
 
-import { getInboxEventById, loadInboxEvents } from './src/read-model.js';
-import { replayInboxEvent, triggerGithubPush } from './src/runtime-store.js';
+import {
+  getEventContextById,
+  getInboxEventById,
+  loadInboxEvents
+} from './src/read-model.js';
+import {
+  refreshEventContext,
+  replayInboxEvent,
+  triggerGithubPush
+} from './src/runtime-store.js';
 
 export function getServerConfig(env = process.env) {
   return {
@@ -72,6 +80,17 @@ export async function routeRequest({
     return jsonResponse(200, loadInboxEvents({ root, env }));
   }
 
+  if (method === 'GET' && pathname.startsWith('/api/events/') && pathname.endsWith('/context')) {
+    const eventId = pathname.replace('/api/events/', '').replace('/context', '');
+    const context = getEventContextById(eventId, { root, env });
+
+    if (!context) {
+      return errorResponse(404, 'Event not found');
+    }
+
+    return jsonResponse(200, context);
+  }
+
   if (method === 'GET' && pathname.startsWith('/api/events/')) {
     const eventId = pathname.replace('/api/events/', '');
     const event = getInboxEventById(eventId, { root, env });
@@ -96,6 +115,31 @@ export async function routeRequest({
       });
 
       return jsonResponse(202, event);
+    } catch (error) {
+      return errorResponse(error.statusCode ?? 400, error.message);
+    }
+  }
+
+  if (
+    method === 'POST' &&
+    pathname.startsWith('/api/events/') &&
+    pathname.endsWith('/context/refresh')
+  ) {
+    const eventId = pathname.replace('/api/events/', '').replace('/context/refresh', '');
+
+    try {
+      const event = await refreshEventContext({
+        eventId,
+        root,
+        env,
+        fetchImpl
+      });
+
+      if (!event) {
+        return errorResponse(404, 'Event not found');
+      }
+
+      return jsonResponse(200, getEventContextById(event.eventId, { root, env }));
     } catch (error) {
       return errorResponse(error.statusCode ?? 400, error.message);
     }
